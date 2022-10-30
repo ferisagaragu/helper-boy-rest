@@ -9,7 +9,7 @@ import org.pechblenda.auth.enums.AccountType
 import java.util.UUID
 
 @SpringBootTest
-class UserTests {
+class UserTest {
 
 	@Test
 	fun `instance user entity`() {
