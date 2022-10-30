@@ -10,29 +10,24 @@ import org.pechblenda.security.JwtProvider
 
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter
 import org.springframework.security.config.http.SessionCreationPolicy
-import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 
-@Configuration
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
-class WebSecurityConfig: WebSecurityConfigurerAdapter() {
+class WebSecurityConfig {
 
 	@Autowired
 	private lateinit var userDetailsService: UserDetailsServiceImpl
-
-	@Autowired
-	private lateinit var jwtAuthEntryPoint: JwtAuthEntryPoint
 
 	@Autowired
 	private lateinit var jwtProvider: JwtProvider
@@ -40,36 +35,9 @@ class WebSecurityConfig: WebSecurityConfigurerAdapter() {
 	@Autowired
 	private lateinit var authRepository: IAuthRepository
 
-	override fun configure(authenticationManagerBuilder: AuthenticationManagerBuilder) {
-		authenticationManagerBuilder
-			.userDetailsService<UserDetailsService?>(userDetailsService)
-			.passwordEncoder(passwordEncoder())
-	}
-
-	override fun configure(http: HttpSecurity) {
-		http
-			.cors()
-			.and()
-			.csrf()
-			.disable()
-			.authorizeRequests()
-			.antMatchers(
-				"/api/**/",
-				"/rest/auth/**"
-			).permitAll()
-			.anyRequest()
-			.authenticated()
-			.and()
-			.exceptionHandling()
-			.authenticationEntryPoint(jwtAuthEntryPoint)
-			.and()
-			.sessionManagement()
-			.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-
-		http.addFilterBefore(
-			authenticationJwtTokenFilter(),
-			UsernamePasswordAuthenticationFilter::class.java
-		)
+	@Bean
+	fun authenticationJwtTokenFilter(): JwtAuthTokenFilter {
+		return JwtAuthTokenFilter(jwtProvider, userDetailsService)
 	}
 
 	@Bean
@@ -78,18 +46,46 @@ class WebSecurityConfig: WebSecurityConfigurerAdapter() {
 	}
 
 	@Bean
+	fun authenticationProvider(): DaoAuthenticationProvider {
+		val authProvider = DaoAuthenticationProvider()
+		authProvider.setUserDetailsService(userDetailsService)
+		authProvider.setPasswordEncoder(passwordEncoder())
+		return authProvider
+	}
+
+	@Bean
+	fun authenticationManager(authConfig: AuthenticationConfiguration): AuthenticationManager {
+		return authConfig.authenticationManager
+	}
+
+	@Bean
 	fun passwordEncoder(): PasswordEncoder {
 		return BCryptPasswordEncoder()
 	}
 
 	@Bean
-	fun authenticationJwtTokenFilter(): JwtAuthTokenFilter {
-		return JwtAuthTokenFilter(jwtProvider, userDetailsService)
-	}
+	fun filterChain(http: HttpSecurity): SecurityFilterChain? {
+		http.cors()
+			.and()
+			.csrf()
+			.disable()
+			.exceptionHandling()
+			.authenticationEntryPoint(jwtAuthEntryPoint())
+			.and()
+			.sessionManagement()
+			.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+			.and()
+			.authorizeRequests()
+			.antMatchers(
+				"/rest/auth/**",
+				"/api/**",
+			).permitAll()
+			.anyRequest()
+			.authenticated()
 
-	@Bean
-	override fun authenticationManagerBean(): AuthenticationManager {
-		return super.authenticationManagerBean()
+		http.authenticationProvider(authenticationProvider())
+		http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter::class.java)
+		return http.build()
 	}
 
 	@Bean
