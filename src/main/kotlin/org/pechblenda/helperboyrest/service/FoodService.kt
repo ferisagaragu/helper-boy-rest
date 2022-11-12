@@ -13,23 +13,17 @@ import org.pechblenda.helperboyrest.entity.Food
 import org.pechblenda.service.helper.Validation
 import org.pechblenda.service.helper.ValidationType
 import org.pechblenda.service.helper.Validations
-import org.pechblenda.style.Color
-import org.pechblenda.style.enums.CategoryColor
 import org.pechblenda.service.enum.IdType
 import org.pechblenda.service.helper.EntityParse
 import org.pechblenda.service.helper.ProtectField
 import org.pechblenda.service.helper.ProtectFields
 
 import java.util.UUID
-import java.util.Date
-
-import java.net.URLEncoder
 
 @Service
 class FoodService(
 	val foodRepository: IFoodRepository,
-	val response: Response,
-	val color: Color
+	val response: Response
 ): IFoodService {
 
 	@Transactional(readOnly = true)
@@ -42,33 +36,17 @@ class FoodService(
 			return response.toMap(food).ok()
 		}
 
-		val detail = mutableMapOf<String, Double?>()
-		detail["total"] = foodRepository.sumTotal() ?: 0.0
-
 		if (has != null) {
-			return response.toListMap(foodRepository.findByHas(has)).ok(detail)
+			return response.toListMap(foodRepository.findByHas(has)).ok()
 		}
 
-		return response.toListMap(foodRepository.findAll()).ok(detail)
+		return response.toListMap(foodRepository.findAll()).ok()
 	}
 
 	@Transactional
 	override fun createFood(request: Request): ResponseEntity<Any> {
 		request.validate(getValidations(false))
-		val food = request.to<Food>(Food::class)
-		val materialColor = color.getMaterialColor(CategoryColor.MATERIAL_500)
-
-		if (food.icon == null) {
-			food.icon = "http://localhost:8080/rest/auth/generate-profile-image/" +
-				"${food.name.substring(0, 2).uppercase()}/" +
-				"${URLEncoder.encode(materialColor.color, "UTF-8")}/" +
-				"${URLEncoder.encode(materialColor.background, "UTF-8")}"
-		}
-
-		food.has = false
-		food.brand = food.brand ?: "Mercantil"
-		foodRepository.save(food)
-
+		foodRepository.save(request.to<Food>(Food::class))
 		return response.created()
 	}
 
@@ -99,7 +77,6 @@ class FoodService(
 		food.has = has
 
 		if (has) {
-			food.buyDate = Date()
 			food.price = price
 		}
 

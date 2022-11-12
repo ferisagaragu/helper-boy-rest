@@ -79,6 +79,7 @@ class WebSecurityConfig {
 			.antMatchers(
 				"/rest/auth/**",
 				"/api/**",
+				"/**" //todo remove that
 			).permitAll()
 			.anyRequest()
 			.authenticated()
